@@ -24,6 +24,7 @@ window.onload = async () => {
   const enemyImg = await loadTexture("assets/enemyShip.png");
   const bulletImg = await loadTexture("assets/laserRed.png");
   const effectImg = await loadTexture("assets/laserGreenShot.png");
+  const lifeImg = await loadTexture("assets/life.png");
   const pattern = ctx.createPattern(
     await loadTexture("assets/starBackground.png"),
     "repeat"
