@@ -2,9 +2,15 @@ let heroX, heroY; // hero의 위치
 let bullets = []; // 발사된 총알
 let enemies = []; // 적을 저장할 배열
 let effects = []; // 충돌 이펙트 저장
+let lives = 3; // 플레이어 목숨
+let score = 0; // 점수
+let isInvincible = false; // 무적 상태
+let gameOver = false; // 게임 종료 상태
+let victory = false; // 승리 상태
 const BULLET_SPEED = 10; // 총알 속도
 const ENEMY_SPEED = 0.1; // 적의 속도 (아래로 이동)
 const EFFECT_DURATION = 500; // 이펙트 지속 시간(ms)
+const INVINCIBLE_DURATION = 3000; // 무적 지속 시간(ms)
 
 function loadTexture(path) {
   return new Promise((resolve) => {
@@ -42,14 +48,27 @@ window.onload = async () => {
     handleKeyPress(event, canvas, ctx, heroImg, bulletImg, pattern);
   });
 
-  // 애니메이션 루프 시작
+  /// 애니메이션 루프 시작
   function gameLoop() {
-    updateBullets();
-    updateEnemies();
-    updateEffects();
-    detectCollisions(ctx, bulletImg, effectImg);
-    drawScene(ctx, canvas, heroImg, bulletImg, enemyImg, effectImg, pattern);
-    requestAnimationFrame(gameLoop);
+    if (!gameOver && !victory) {
+      updateBullets();
+      updateEnemies();
+      updateEffects();
+      detectCollisions(ctx, bulletImg, effectImg);
+      drawScene(
+        ctx,
+        canvas,
+        heroImg,
+        bulletImg,
+        enemyImg,
+        effectImg,
+        pattern,
+        lifeImg
+      );
+      requestAnimationFrame(gameLoop);
+    } else {
+      drawEndMessage(ctx, canvas);
+    }
   }
 
   gameLoop();
@@ -81,15 +100,24 @@ function drawScene(
   bulletImg,
   enemyImg,
   effectImg,
-  pattern
+  pattern,
+  lifeImg
 ) {
   ctx.fillStyle = pattern;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // hero와 작은 hero 그리기
-  ctx.drawImage(heroImg, heroX, heroY, 100, 100);
-  ctx.drawImage(heroImg, heroX - 45, heroY + 30, 30, 30);
-  ctx.drawImage(heroImg, heroX + 115, heroY + 30, 30, 30);
+  if (isInvincible) {
+    if (Math.floor(Date.now() / 100) % 2 === 0) {
+      ctx.drawImage(heroImg, heroX, heroY, 100, 100);
+      ctx.drawImage(heroImg, heroX - 45, heroY + 30, 30, 30);
+      ctx.drawImage(heroImg, heroX + 115, heroY + 30, 30, 30);
+    }
+  } else {
+    ctx.drawImage(heroImg, heroX, heroY, 100, 100);
+    ctx.drawImage(heroImg, heroX - 45, heroY + 30, 30, 30);
+    ctx.drawImage(heroImg, heroX + 115, heroY + 30, 30, 30);
+  }
 
   // 총알 그리기
   bullets.forEach((bullet) => {
@@ -105,6 +133,22 @@ function drawScene(
   effects.forEach((effect) => {
     ctx.drawImage(effectImg, effect.x, effect.y, effect.width, effect.height);
   });
+
+  // 라이프 그리기
+  for (let i = 0; i < lives; i++) {
+    ctx.drawImage(
+      lifeImg,
+      canvas.width - (i + 1) * 40,
+      canvas.height - 40,
+      30,
+      30
+    );
+  }
+
+  // 점수 그리기
+  ctx.fillStyle = "white";
+  ctx.font = "20px Arial";
+  ctx.fillText("Points: " + score, 10, canvas.height - 10);
 }
 
 // 총알 업데이트
@@ -121,7 +165,9 @@ function updateEnemies() {
     enemy.y += ENEMY_SPEED; // 적 아래로 이동
   });
 
-  // 게임 오버 조건 추가 가능 (적이 화면 아래로 내려가면)
+  if (enemies.length === 0) {
+    victory = true;
+  }
 }
 
 // 충돌 이펙트 업데이트
@@ -154,14 +200,48 @@ function detectCollisions(ctx, bulletImg, effectImg) {
         // 총알과 적 제거
         bullets.splice(bIndex, 1);
         enemies.splice(eIndex, 1);
+
+        // 점수 증가
+        score += 100;
       }
     });
+  });
+
+  enemies.forEach((enemy, eIndex) => {
+    if (
+      !isInvincible &&
+      heroX < enemy.x + enemy.width &&
+      heroX + 100 > enemy.x &&
+      heroY < enemy.y + enemy.height &&
+      heroY + 100 > enemy.y
+    ) {
+      // 플레이어와 적 충돌 시
+      lives -= 1;
+      enemies.splice(eIndex, 1);
+
+      if (lives > 0) {
+        isInvincible = true;
+        setTimeout(() => {
+          isInvincible = false;
+        }, INVINCIBLE_DURATION);
+      } else {
+        // 게임 오버 처리
+        gameOver = true;
+      }
+    }
   });
 }
 
 // 키 입력 처리
 function handleKeyPress(event, canvas, ctx, heroImg, bulletImg, pattern) {
   event.preventDefault(); // 기본 동작 방지
+
+  if (gameOver || victory) {
+    if (event.key === "Enter") {
+      restartGame(canvas, ctx, heroImg, bulletImg, pattern);
+    }
+    return;
+  }
 
   const STEP = 20; // hero 이동 거리
 
@@ -209,4 +289,34 @@ function fireBullet() {
     width: 5,
     height: 15,
   });
+}
+
+// 게임 종료 메시지 그리기
+function drawEndMessage(ctx, canvas) {
+  ctx.fillStyle = victory ? "green" : "red";
+  ctx.font = "30px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText(
+    victory
+      ? "Victory!!! Pew Pew... - Press [Enter] to start a new game Captain Pew Pew"
+      : "You died !!! Press [Enter] to start a new game Captain Pew Pew",
+    canvas.width / 2,
+    canvas.height / 2
+  );
+}
+
+// 게임 재시작
+function restartGame(canvas, ctx, heroImg, bulletImg, pattern) {
+  heroX = canvas.width / 2 - 50;
+  heroY = canvas.height - canvas.height / 4;
+  bullets = [];
+  enemies = [];
+  effects = [];
+  lives = 3;
+  score = 0;
+  isInvincible = false;
+  gameOver = false;
+  victory = false;
+  createEnemies(canvas, enemyImg);
+  requestAnimationFrame(gameLoop);
 }
