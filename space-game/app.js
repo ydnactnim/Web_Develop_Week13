@@ -11,6 +11,12 @@ window.onload = function () {
   const playerImage = new Image();
   playerImage.src = "assets/player.png";
 
+  // 플레이어 좌우 이동 이미지를 추가로 로드
+  const playerLeftImage = new Image();
+  playerLeftImage.src = "assets/playerLeft.png";
+  const playerRightImage = new Image();
+  playerRightImage.src = "assets/playerRight.png";
+
   // 레이저 이미지 로드
   const laserImage = new Image();
   laserImage.src = "assets/laserRed.png";
@@ -208,9 +214,31 @@ window.onload = function () {
         lasers.shift();
       }
 
-      // 플레이어 그리기
+      // 현재 플레이어 이미지 결정
+      let currentPlayerImage = playerImage;
+      if (keys.left && !keys.right) {
+        currentPlayerImage = playerLeftImage;
+      } else if (keys.right && !keys.left) {
+        currentPlayerImage = playerRightImage;
+      }
+
+      // 보조 기체도 플레이어 방향에 따라 동일 이미지 사용
+      let currentSupportImage = playerImage;
+      if (keys.left && !keys.right) {
+        currentSupportImage = playerLeftImage;
+      } else if (keys.right && !keys.left) {
+        currentSupportImage = playerRightImage;
+      }
+
+      // 플레이어 그리기 (좌우 키 상태에 따른 이미지)
       if (!isInvincible || Math.floor(timestamp / 100) % 2 === 0) {
-        ctx.drawImage(playerImage, playerX, playerY, playerWidth, playerHeight);
+        ctx.drawImage(
+          currentPlayerImage,
+          playerX,
+          playerY,
+          playerWidth,
+          playerHeight
+        );
       }
 
       // 방어막 그리기
@@ -263,13 +291,10 @@ window.onload = function () {
 
       // 보조 기체 그리기
       if (supportShips >= 1) {
-        ctx.drawImage(playerImage, playerX - 60, playerY + 20, 50, 35);
+        ctx.drawImage(currentSupportImage, playerX - 60, playerY + 20, 50, 35);
       }
       if (supportShips >= 2) {
-        ctx.drawImage(playerImage, playerX + 110, playerY + 20, 50, 35);
-      }
-      if (supportShips >= 3) {
-        ctx.drawImage(playerImage, playerX + 25, playerY + 100, 50, 35);
+        ctx.drawImage(currentSupportImage, playerX + 110, playerY + 20, 50, 35);
       }
 
       // 라이프 그리기
