@@ -41,6 +41,9 @@ window.onload = function () {
   const effectImage = new Image();
   effectImage.src = "assets/laserRedShot.png";
 
+  const hpBarImage = new Image();
+  hpBarImage.src = "assets/hpBar.png";
+
   // 플레이어 위치 및 크기
   const playerWidth = 100; // 원하는 너비
   const playerHeight = 80; // 원하는 높이
@@ -59,6 +62,7 @@ window.onload = function () {
   let laserCooldown = 500; // 초기 레이저 발사 속도
   let supportShips = 0; // 보조 기체 수
   let shield = 0; // 방어막
+  let playerDamage = 10; // 플레이어 레이저 공격력 추가
 
   // 적 기체 배열
   const enemies = [];
@@ -94,6 +98,7 @@ window.onload = function () {
           height: enemyH,
           alive: true,
           isBoss: false,
+          hp: 10, // 일반 적 HP 추가
         });
       }
     }
@@ -108,6 +113,7 @@ window.onload = function () {
       height: 200,
       alive: true,
       isBoss: true,
+      hp: 1000, // 보스 HP 추가
     });
     bossHits = 0;
   }
@@ -245,26 +251,34 @@ window.onload = function () {
             lasers[i].y < enemy.y + enemy.height &&
             lasers[i].y + laserImage.height > enemy.y
           ) {
-            // 적 처치 시 사망 이펙트 등록
-            if (enemy.isBoss) {
-              bossHits++;
-              if (bossHits >= maxBossHits) {
+            enemy.hp -= playerDamage; // 적의 HP 깎기
+            if (enemy.hp <= 0) {
+              enemy.alive = false;
+              // 적 처치 시 사망 이펙트 등록
+              if (enemy.isBoss) {
+                bossHits++;
+                if (bossHits >= maxBossHits) {
+                  enemy.alive = false;
+                }
+              } else {
                 enemy.alive = false;
               }
-            } else {
-              enemy.alive = false;
-            }
-            playerExp += 10;
-            deathEffects.push({
-              x: enemy.x + enemy.width / 2,
-              y: enemy.y + enemy.height / 2,
-              startTime: performance.now(),
-              duration: 200, // 2초간 유지
-            });
+              playerExp += 10;
+              deathEffects.push({
+                x: enemy.x + enemy.width / 2,
+                y: enemy.y + enemy.height / 2,
+                startTime: performance.now(),
+                duration: 200, // 2초간 유지
+              });
 
+              lasers.splice(i, 1);
+              i--;
+              checkStageProgress(); // 스테이지 진행 체크
+              break;
+            }
+            // 레이저 제거
             lasers.splice(i, 1);
             i--;
-            checkStageProgress(); // 스테이지 진행 체크
             break;
           }
         }
@@ -335,6 +349,34 @@ window.onload = function () {
             enemy.width,
             enemy.height
           );
+
+          // HP 바 그리기
+          const maxHp = enemy.isBoss ? 1000 : 10;
+          const hpRatio = enemy.hp / maxHp;
+          const barWidth = enemy.width; // 적 너비에 맞춤
+          const barHeight = 22 * (barWidth / 204); // 이미지 비율대로 높이 조정
+
+          // HP 바 이미지
+          ctx.save();
+          ctx.globalAlpha = 0.8; 
+          ctx.drawImage(
+            hpBarImage,
+            enemy.x,
+            enemy.y + enemy.height,
+            barWidth,
+            barHeight
+          );
+
+          // 내부 빨간색 채우기 (2px 테두리 제외)
+          ctx.fillStyle = "rgba(255, 0, 0, 0.8)";
+          const fillWidth = Math.floor(hpRatio * (barWidth - 4));
+          ctx.fillRect(
+            enemy.x + 2,
+            enemy.y + enemy.height + 2,
+            fillWidth,
+            barHeight - 4
+          );
+          ctx.restore();
         }
       }
 
@@ -471,6 +513,7 @@ window.onload = function () {
         { text: "보조기체 추가", action: addSupportShip },
         { text: "목숨 추가", action: addExtraLife },
         { text: "방어막 추가", action: addShield },
+        { text: "공격력 증가", action: increasePlayerDamage } // 새 업그레이드
       ];
 
       // 랜덤으로 3개의 업그레이드 선택지 선택
@@ -547,6 +590,12 @@ window.onload = function () {
 
     function addShield() {
       shield += 100;
+    }
+
+    function increasePlayerDamage() {
+      if (playerDamage < 1000) {
+        playerDamage = Math.min(playerDamage + 10, 1000);
+      }
     }
 
     // 게임 오버 처리
