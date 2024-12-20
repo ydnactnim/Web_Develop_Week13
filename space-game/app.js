@@ -66,21 +66,75 @@ window.onload = function () {
   // 적 사망 이펙트를 저장할 배열
   const deathEffects = [];
 
-  // 적 기체 생성 함수
-  function createEnemy() {
-    const enemyX = canvas.width / 2 - 50;
-    const enemyY = canvas.height / 2 - 50;
+  // 스테이지, 보스 관련 변수
+  let currentStage = 1; // 현재 스테이지
+  let bossHits = 0; // 보스가 맞은 횟수
+  const maxBossHits = 100; // 보스가 맞아야 하는 횟수
+
+  // 기존 createEnemy 함수 제거 후, 스테이지 적 생성 함수
+  function spawnStageEnemies(stage) {
+    // 스테이지별 열 갯수 (1스테이지: 3, 2스테이지: 5, 3스테이지: 7)
+    const columns = 3 + (stage - 1) * 2;
+    const rows = 10; // 각 스테이지에서 적은 10행
+    const gap = 10; // 적 사이 간격
+    const enemyW = 100; // 적 기체 너비
+    const enemyH = 100; // 적 기체 높이
+
+    // 스테이지 적들이 중앙에서 나오도록 시작 X 좌표 조정
+    const totalWidth = columns * enemyW + (columns - 1) * gap;
+    let startX = (canvas.width - totalWidth) / 2;
+    let startY = -enemyH; // 위쪽 영역에서 순차적으로 내려옴
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < columns; c++) {
+        enemies.push({
+          x: startX + c * (enemyW + gap),
+          y: startY - r * (enemyH + gap),
+          width: enemyW,
+          height: enemyH,
+          alive: true,
+          isBoss: false,
+        });
+      }
+    }
+  }
+
+  // 보스 생성 함수
+  function spawnBoss() {
     enemies.push({
-      x: enemyX,
-      y: enemyY,
-      width: 100,
-      height: 100,
+      x: canvas.width / 2 - 100,
+      y: canvas.height / 2 - 100,
+      width: 200,
+      height: 200,
       alive: true,
+      isBoss: true,
     });
+    bossHits = 0;
+  }
+
+  // 스테이지 진행 체크
+  function checkStageProgress() {
+    // 현재 남은 적 확인
+    const aliveEnemies = enemies.filter((e) => e.alive);
+    if (aliveEnemies.length === 0) {
+      // 모든 적 처치 시 다음 스테이지
+      currentStage++;
+      if (currentStage === 4) {
+        // 4스테이지 = 보스
+        spawnBoss();
+      } else if (currentStage > 4) {
+        // 보스 처치 후 1스테이지로 재시작
+        currentStage = 1;
+        enemies.length = 0;
+        spawnStageEnemies(currentStage);
+      } else {
+        spawnStageEnemies(currentStage);
+      }
+    }
   }
 
   // 초기 적 기체 생성
-  createEnemy();
+  spawnStageEnemies(currentStage);
 
   // 키 입력 상태 추적
   const keys = {
@@ -192,18 +246,25 @@ window.onload = function () {
             lasers[i].y + laserImage.height > enemy.y
           ) {
             // 적 처치 시 사망 이펙트 등록
-            enemy.alive = false;
+            if (enemy.isBoss) {
+              bossHits++;
+              if (bossHits >= maxBossHits) {
+                enemy.alive = false;
+              }
+            } else {
+              enemy.alive = false;
+            }
             playerExp += 10;
             deathEffects.push({
               x: enemy.x + enemy.width / 2,
               y: enemy.y + enemy.height / 2,
               startTime: performance.now(),
-              duration: 2000, // 2초간 유지
+              duration: 200, // 2초간 유지
             });
 
             lasers.splice(i, 1);
             i--;
-            createEnemy(); // 새로운 적 기체 생성
+            checkStageProgress(); // 스테이지 진행 체크
             break;
           }
         }
@@ -254,10 +315,19 @@ window.onload = function () {
         }
       }
 
-      // 적 기체 그리기
+      // 적 기체 이동 및 그리기
       for (let i = 0; i < enemies.length; i++) {
         const enemy = enemies[i];
         if (enemy.alive) {
+          // 보스가 아닌 경우엔 아래로 이동
+          if (!enemy.isBoss) {
+            enemy.y += 1;
+            // 화면 밖으로 나가면 제거
+            if (enemy.y > canvas.height) {
+              enemy.alive = false;
+            }
+          }
+          // 적 기체 그리기
           ctx.drawImage(
             enemyImage,
             enemy.x,
@@ -267,6 +337,9 @@ window.onload = function () {
           );
         }
       }
+
+      // 적 이동 및 상태 업데이트 후 스테이지 진행 체크
+      checkStageProgress();
 
       // 적 사망 이펙트 그리기 (시간 경과에 따라 alpha 감소)
       for (let i = deathEffects.length - 1; i >= 0; i--) {
@@ -520,8 +593,10 @@ window.onload = function () {
       laserCooldown = 500;
       supportShips = 0;
       shield = 0;
+      currentStage = 1;
       enemies.length = 0;
-      createEnemy();
+      bossHits = 0;
+      spawnStageEnemies(currentStage);
       isPaused = false;
       isInvincible = false;
       requestAnimationFrame(gameLoop);
