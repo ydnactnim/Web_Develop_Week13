@@ -31,6 +31,10 @@ window.onload = function () {
   const shieldImage = new Image();
   shieldImage.src = "assets/shield.png";
 
+  // 이펙트 이미지 로드
+  const effectImage = new Image();
+  effectImage.src = "assets/laserRedShot.png";
+
   // 플레이어 위치 및 크기
   const playerWidth = 100; // 원하는 너비
   const playerHeight = 80; // 원하는 높이
@@ -52,6 +56,9 @@ window.onload = function () {
 
   // 적 기체 배열
   const enemies = [];
+
+  // 적 사망 이펙트를 저장할 배열
+  const deathEffects = [];
 
   // 적 기체 생성 함수
   function createEnemy() {
@@ -178,8 +185,16 @@ window.onload = function () {
             lasers[i].y < enemy.y + enemy.height &&
             lasers[i].y + laserImage.height > enemy.y
           ) {
+            // 적 처치 시 사망 이펙트 등록
             enemy.alive = false;
             playerExp += 10;
+            deathEffects.push({
+              x: enemy.x + enemy.width / 2,
+              y: enemy.y + enemy.height / 2,
+              startTime: performance.now(),
+              duration: 2000, // 2초간 유지
+            });
+
             lasers.splice(i, 1);
             i--;
             createEnemy(); // 새로운 적 기체 생성
@@ -223,6 +238,27 @@ window.onload = function () {
             enemy.height
           );
         }
+      }
+
+      // 적 사망 이펙트 그리기 (시간 경과에 따라 alpha 감소)
+      for (let i = deathEffects.length - 1; i >= 0; i--) {
+        const effect = deathEffects[i];
+        const elapsed = timestamp - effect.startTime;
+        const alpha = 1 - elapsed / effect.duration;
+
+        if (alpha <= 0) {
+          deathEffects.splice(i, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.drawImage(
+          effectImage,
+          effect.x - effectImage.width / 2,
+          effect.y - effectImage.height / 2
+        );
+        ctx.restore();
       }
 
       // 보조 기체 그리기
