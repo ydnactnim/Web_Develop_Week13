@@ -80,7 +80,8 @@ window.onload = function () {
 
   // 레이저 배열
   const lasers = [];
-  let lastFireTime = 0;
+  let lastFireTime = 0; // 플레이어 레이저 발사 시간 기록
+  let lastSupportFireTime = 0; // 보조 기체 레이저 발사 시간 기록
 
   // 게임 일시정지 상태
   let isPaused = false;
@@ -130,13 +131,36 @@ window.onload = function () {
       if (keys.right)
         playerX = Math.min(canvas.width - playerWidth, playerX + 5);
 
-      // 레이저 발사
+      // 플레이어 레이저 발사
       if (keys.space && timestamp - lastFireTime > laserCooldown) {
         lasers.push({
           x: playerX + playerWidth / 2 - laserImage.width / 2,
           y: playerY,
         });
         lastFireTime = timestamp;
+      }
+
+      // 보조 기체 레이저 발사 (플레이어 발사의 절반 속도)
+      if (
+        keys.space &&
+        supportShips > 0 &&
+        timestamp - lastSupportFireTime > laserCooldown * 2
+      ) {
+        // 보조 기체 1
+        if (supportShips >= 1) {
+          lasers.push({
+            x: playerX - 60 + 50 / 2 - laserImage.width / 2,
+            y: playerY + 20 + 35 / 2 - laserImage.height / 2,
+          });
+        }
+        // 보조 기체 2
+        if (supportShips >= 2) {
+          lasers.push({
+            x: playerX + 110 + 50 / 2 - laserImage.width / 2,
+            y: playerY + 20 + 35 / 2 - laserImage.height / 2,
+          });
+        }
+        lastSupportFireTime = timestamp;
       }
 
       // 레이저 이동 및 그리기
