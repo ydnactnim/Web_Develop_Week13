@@ -44,6 +44,10 @@ window.onload = function () {
   const hpBarImage = new Image();
   hpBarImage.src = "assets/hpBar.png";
 
+  // 보스 이미지 변경
+  const bossImage = new Image();
+  bossImage.src = "assets/enemyUFO.png";
+
   // 플레이어 위치 및 크기
   const playerWidth = 100; // 원하는 너비
   const playerHeight = 80; // 원하는 높이
@@ -74,6 +78,16 @@ window.onload = function () {
   let currentStage = 1; // 현재 스테이지
   let bossHits = 0; // 보스가 맞은 횟수
   const maxBossHits = 100; // 보스가 맞아야 하는 횟수
+
+  // 보스 행동 관련 변수
+  let lastBossFireTime = 0;
+  let bossFireCooldown = 1000; // 초당 1발
+  let lastBossDashTime = 0;
+  let bossDashCooldown = 5000; // 5초마다 돌진
+  let bossMoveSpeed = 2;
+
+  // 보스를 위한 레이저 배열 추가
+  const bossLasers = [];
 
   // 기존 createEnemy 함수 제거 후, 스테이지 적 생성 함수
   function spawnStageEnemies(stage) {
@@ -114,6 +128,7 @@ window.onload = function () {
       alive: true,
       isBoss: true,
       hp: 1000, // 보스 HP 추가
+      direction: 1,  // 좌우 이동 방향
     });
     bossHits = 0;
   }
@@ -289,6 +304,47 @@ window.onload = function () {
         lasers.shift();
       }
 
+      // 보스 레이저 이동 및 그리기
+      for (let i = 0; i < bossLasers.length; i++) {
+        bossLasers[i].y += 5; // 보스 레이저 속도 조절
+        ctx.drawImage(laserImage, bossLasers[i].x, bossLasers[i].y);
+
+        // 플레이어와의 충돌 검사
+        if (
+          playerX < bossLasers[i].x + laserImage.width &&
+          playerX + playerWidth > bossLasers[i].x &&
+          playerY < bossLasers[i].y + laserImage.height &&
+          playerY + playerHeight > bossLasers[i].y
+        ) {
+          if (!isInvincible) {
+            if (shield > 0) {
+              shield = Math.max(0, shield - 50);
+              isInvincible = true;
+              invincibleEndTime = timestamp + 500; // 0.5초 무적
+              isShieldBlinking = true;
+              shieldBlinkEndTime = timestamp + 500;
+            } else {
+              playerLives--;
+              isInvincible = true;
+              invincibleEndTime = timestamp + 1500; // 1.5초 무적
+              if (playerLives <= 0) {
+                gameOver();
+                return;
+              }
+            }
+            // 보스 레이저 제거
+            bossLasers.splice(i, 1);
+            i--;
+          }
+        }
+
+        // 화면 밖으로 나간 레이저 제거
+        if (bossLasers[i] && bossLasers[i].y > canvas.height) {
+          bossLasers.splice(i, 1);
+          i--;
+        }
+      }
+
       // 현재 플레이어 이미지 결정
       let currentPlayerImage = playerImage;
       if (keys.left && !keys.right) {
@@ -329,54 +385,102 @@ window.onload = function () {
         }
       }
 
+      // 체력 바 그리기 함수 추가
+      function drawHealthBar(x, y, width, height, ratio) {
+        // HP 바 배경 그리기
+        ctx.drawImage(hpBarImage, x, y, width, height);
+      
+        // HP 바 채우기
+        ctx.fillStyle = "green";
+        ctx.fillRect(x + 2, y + 2, (width - 4) * ratio, height - 4);
+      }
+
       // 적 기체 이동 및 그리기
       for (let i = 0; i < enemies.length; i++) {
         const enemy = enemies[i];
         if (enemy.alive) {
-          // 보스가 아닌 경우엔 아래로 이동
-          if (!enemy.isBoss) {
+          if (enemy.isBoss) {
+            // 보스 이동 로직
+            if (enemy.hp >= 500) {
+              enemy.x += bossMoveSpeed * enemy.direction;
+              if (enemy.x <= 0 || enemy.x + enemy.width >= canvas.width) {
+                enemy.direction *= -1;
+              }
+              // 레이저 발사
+              if (timestamp - lastBossFireTime > bossFireCooldown) {
+                bossLasers.push({
+                  x: enemy.x + enemy.width / 2 - laserImage.width / 2,
+                  y: enemy.y + enemy.height,
+                });
+                lastBossFireTime = timestamp;
+              }
+            } else {
+              // HP 49% 이하 로직
+              enemy.x += bossMoveSpeed * enemy.direction;
+              if (enemy.x <= 0 || enemy.x + enemy.width >= canvas.width) {
+                enemy.direction *= -1;
+              }
+              // 레이저 발사
+              if (timestamp - lastBossFireTime > bossFireCooldown) {
+                bossLasers.push({
+                  x: enemy.x + enemy.width / 2 - laserImage.width / 2,
+                  y: enemy.y + enemy.height,
+                });
+                lastBossFireTime = timestamp;
+              }
+              // 돌진 공격
+              if (timestamp - lastBossDashTime > bossDashCooldown) {
+                const dx = playerX - enemy.x;
+                const dy = playerY - enemy.y;
+                const dashSpeed = 50;
+                enemy.x = Math.max(0, Math.min(
+                  canvas.width - enemy.width,
+                  enemy.x + (dx > 0 ? dashSpeed : -dashSpeed)
+                ));
+                enemy.y = Math.max(0, Math.min(
+                  canvas.height - enemy.height,
+                  enemy.y + (dy > 0 ? dashSpeed : -dashSpeed)
+                ));
+                lastBossDashTime = timestamp;
+              }
+            }
+      
+            // 보스 HP 바 그리기
+            const bossHpBarWidth = 200;
+            const bossHpBarHeight = 20;
+            const bossHpBarX = enemy.x + (enemy.width - bossHpBarWidth) / 2;
+            const bossHpBarY = enemy.y - 30;
+            const bossHpRatio = enemy.hp / 1000;
+      
+            drawHealthBar(bossHpBarX, bossHpBarY, bossHpBarWidth, bossHpBarHeight, bossHpRatio);
+      
+            // 보스 그리기
+            ctx.drawImage(bossImage, enemy.x, enemy.y, enemy.width, enemy.height);
+          } else {
+            // 기존 일반 적 처리
             enemy.y += 1;
             // 화면 밖으로 나가면 제거
             if (enemy.y > canvas.height) {
               enemy.alive = false;
             }
+            // 적 기체 그리기
+            ctx.drawImage(
+              enemyImage,
+              enemy.x,
+              enemy.y,
+              enemy.width,
+              enemy.height
+            );
+      
+            // 일반 적 HP 바 그리기
+            const enemyHpBarWidth = 50;
+            const enemyHpBarHeight = 5;
+            const enemyHpBarX = enemy.x + (enemy.width - enemyHpBarWidth) / 2;
+            const enemyHpBarY = enemy.y - 10;
+            const enemyHpRatio = enemy.hp / 10;
+      
+            drawHealthBar(enemyHpBarX, enemyHpBarY, enemyHpBarWidth, enemyHpBarHeight, enemyHpRatio);
           }
-          // 적 기체 그리기
-          ctx.drawImage(
-            enemyImage,
-            enemy.x,
-            enemy.y,
-            enemy.width,
-            enemy.height
-          );
-
-          // HP 바 그리기
-          const maxHp = enemy.isBoss ? 1000 : 10;
-          const hpRatio = enemy.hp / maxHp;
-          const barWidth = enemy.width; // 적 너비에 맞춤
-          const barHeight = 22 * (barWidth / 204); // 이미지 비율대로 높이 조정
-
-          // HP 바 이미지
-          ctx.save();
-          ctx.globalAlpha = 0.8; 
-          ctx.drawImage(
-            hpBarImage,
-            enemy.x,
-            enemy.y + enemy.height,
-            barWidth,
-            barHeight
-          );
-
-          // 내부 빨간색 채우기 (2px 테두리 제외)
-          ctx.fillStyle = "rgba(255, 0, 0, 0.8)";
-          const fillWidth = Math.floor(hpRatio * (barWidth - 4));
-          ctx.fillRect(
-            enemy.x + 2,
-            enemy.y + enemy.height + 2,
-            fillWidth,
-            barHeight - 4
-          );
-          ctx.restore();
         }
       }
 
